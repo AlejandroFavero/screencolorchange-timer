@@ -455,7 +455,8 @@ html, body {
       gradual: 'Gradual change', sound: 'Sound alert', language: 'Language',
       btnStart: 'Start', btnResume: 'Resume', btnStartAgain: 'Start Again', btnReset: 'Reset',
       paused: 'Paused', done: 'Done! Ready to go again.',
-      notifTitle: 'Almost done!', notifBody: 'Color transition ending soon'
+      notifTitle: 'Almost done!', notifBody: 'Color transition ending soon',
+      doneNotifTitle: "Time's up!", doneNotifBody: 'Your color transition is complete.'
     },
     es: {
       appTitle: 'Cambio de Color', startColor: 'Color inicial', endColor: 'Color final',
@@ -463,7 +464,8 @@ html, body {
       gradual: 'Cambio gradual', sound: 'Alerta sonora', language: 'Idioma',
       btnStart: 'Comenzar', btnResume: 'Continuar', btnStartAgain: 'Comenzar de nuevo', btnReset: 'Reiniciar',
       paused: 'Pausado', done: '¡Listo! Listo para volver a empezar.',
-      notifTitle: '¡Casi listo!', notifBody: 'La transición de color termina pronto'
+      notifTitle: '¡Casi listo!', notifBody: 'La transición de color termina pronto',
+      doneNotifTitle: '¡Tiempo!', doneNotifBody: 'Tu transición de color ha terminado.'
     }
   };
 
@@ -733,6 +735,29 @@ html, body {
     }
   }
 
+  // ── sw scheduling (android screen-off support) ─────────
+
+  function scheduleSwAlert() {
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+    var alertDelay = wakeupFired ? null : Math.max(0, cDur * (1 - cThresh / 100) - elapsedSaved);
+    var doneDelay  = Math.max(0, cDur - elapsedSaved);
+    navigator.serviceWorker.controller.postMessage({
+      type: 'SCHEDULE_ALERT',
+      alertDelay: alertDelay,
+      doneDelay:  doneDelay,
+      alertTitle: t('notifTitle'),
+      alertBody:  t('notifBody'),
+      doneTitle:  t('doneNotifTitle'),
+      doneBody:   t('doneNotifBody'),
+      icon: makeIcon(ecNative.value)
+    });
+  }
+
+  function cancelSwAlert() {
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+    navigator.serviceWorker.controller.postMessage({ type: 'CANCEL_ALERT' });
+  }
+
   // ── animation ──────────────────────────────────────────
 
   function animate(ts) {
@@ -768,6 +793,7 @@ html, body {
     state = DONE;
     stopSilent();
     relWakeLock();
+    cancelSwAlert();
     playChime([784,880,1047], 0.3);
     doneMark.className = 'on';
     setTimeout(function() { doneMark.className = ''; }, 1200);
@@ -807,6 +833,7 @@ html, body {
     startSilent();
     reqWakeLock();
     reqNotifPerm();
+    scheduleSwAlert();
 
     setPanel(false);
     setRunUI(true);
@@ -823,6 +850,7 @@ html, body {
     state = RUN;
     startSilent();
     reqWakeLock();
+    scheduleSwAlert();
     setPanel(false);
     setRunUI(true);
     statusEl.textContent = '';
@@ -837,6 +865,7 @@ html, body {
     cancelAnimationFrame(animId);
     stopSilent();
     relWakeLock();
+    cancelSwAlert();
     setRunUI(false);
     setPanel(true);
     mainBtn.textContent = t('btnResume');
@@ -849,6 +878,7 @@ html, body {
     if (animId) cancelAnimationFrame(animId);
     stopSilent();
     relWakeLock();
+    cancelSwAlert();
     state = IDLE;
     elapsedSaved = 0;
     wakeupFired = false;
