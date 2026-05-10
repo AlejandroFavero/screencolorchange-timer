@@ -1,4 +1,4 @@
-var CACHE = 'cc-v1';
+var CACHE = 'cc-v2';
 var FILES = ['./index.html', './manifest.json', './sw.js', './icon.svg'];
 
 self.addEventListener('install', function(e) {
@@ -18,17 +18,60 @@ self.addEventListener('fetch', function(e) {
   e.respondWith(caches.match(e.request).then(function(r) { return r || fetch(e.request); }));
 });
 
+var alertTimer = null;
+var doneTimer = null;
+
 self.addEventListener('message', function(e) {
-  if (!e.data || e.data.type !== 'NOTIFY') return;
-  var opts = e.data.opts;
-  e.waitUntil(
-    self.registration.showNotification(opts.title, {
-      body: opts.body,
-      icon: opts.icon,
-      badge: opts.icon,
-      tag: 'cc-alert',
-      renotify: true,
-      requireInteraction: false
-    })
-  );
+  if (!e.data) return;
+
+  if (e.data.type === 'SCHEDULE_ALERT') {
+    if (alertTimer) { clearTimeout(alertTimer); alertTimer = null; }
+    if (doneTimer)  { clearTimeout(doneTimer);  doneTimer  = null; }
+
+    var d = e.data;
+
+    if (d.alertDelay !== null && d.alertDelay >= 0) {
+      alertTimer = setTimeout(function() {
+        self.registration.showNotification(d.alertTitle, {
+          body: d.alertBody,
+          icon: d.icon,
+          tag: 'cc-alert',
+          renotify: true,
+          vibrate: [300, 100, 300]
+        });
+      }, d.alertDelay);
+    }
+
+    doneTimer = setTimeout(function() {
+      self.registration.showNotification(d.doneTitle, {
+        body: d.doneBody,
+        icon: d.icon,
+        tag: 'cc-done',
+        renotify: true,
+        vibrate: [500, 200, 500, 200, 500]
+      });
+    }, d.doneDelay);
+    return;
+  }
+
+  if (e.data.type === 'CANCEL_ALERT') {
+    if (alertTimer) { clearTimeout(alertTimer); alertTimer = null; }
+    if (doneTimer)  { clearTimeout(doneTimer);  doneTimer  = null; }
+    return;
+  }
+
+  if (e.data.type === 'NOTIFY') {
+    var opts = e.data.opts;
+    e.waitUntil(
+      self.registration.showNotification(opts.title, {
+        body: opts.body,
+        icon: opts.icon,
+        badge: opts.icon,
+        tag: 'cc-alert',
+        renotify: true,
+        vibrate: [300, 100, 300]
+      })
+    );
+  }
 });
+
