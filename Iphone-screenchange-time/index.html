@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Color Change</title>
+<style>
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── gear button ── */
+#gear-btn {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  background: rgba(0,0,0,0.32);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 30;
+}
+#gear-btn.on { display: flex; }
+
+/* ── timer ── */
+#timer {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 54px;
+  font-weight: 200;
+  color: rgba(255,255,255,0.6);
+  letter-spacing: 2px;
+  pointer-events: none;
+  display: none;
+  z-index: 10;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  font-variant-numeric: tabular-nums;
+}
+#timer.on { display: block; }
+
+/* ── done mark ── */
+#done-mark {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  font-size: 80px;
+  color: rgba(255,255,255,0.9);
+  pointer-events: none;
+  display: none;
+  z-index: 10;
+  text-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+#done-mark.on {
+  display: block;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* ── progress bar ── */
+#prog-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(0,0,0,0.15);
+  display: none;
+  z-index: 30;
+}
+#prog-bar.on { display: block; }
+#prog-fill {
+  height: 100%;
+  width: 0%;
+  background: rgba(255,255,255,0.75);
+}
+
+/* ── settings panel ── */
+#panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #f2f2f7;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -4px 30px rgba(0,0,0,0.18);
+  max-height: 92vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  transform: translateY(0);
+  transition: transform 0.38s cubic-bezier(0.32,0,0.67,0);
+  z-index: 20;
+}
+#panel.hidden {
+  transform: translateY(110%);
+  transition: transform 0.38s cubic-bezier(0.33,1,0.68,1);
+}
+
+.inner {
+  padding: 0 16px 28px;
+}
+
+.handle {
+  width: 36px;
+  height: 5px;
+  background: #c7c7cc;
+  border-radius: 3px;
+  margin: 12px auto 16px;
+}
+
+.app-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1c1c1e;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+/* gradient preview strip */
+#grad-preview {
+  height: 8px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+
+/* card */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.crow {
+  display: flex;
+  align-items: center;
+  padding: 11px 16px;
+  min-height: 50px;
+  border-bottom: 0.5px solid #e5e5ea;
+}
+.crow:last-child { border-bottom: none; }
+
+.clabel {
+  flex: 1;
+  font-size: 16px;
+  color: #1c1c1e;
+}
+
+.cval {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* color swatch */
+.color-wrap {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+.swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid rgba(0,0,0,0.14);
+  cursor: pointer;
+}
+.cnative {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+/* hex text input */
+.hexin {
+  width: 88px;
+  padding: 5px 8px;
+  border: 1px solid #d1d1d6;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: 'Menlo', 'Monaco', monospace;
+  color: #1c1c1e;
+  background: #fafafa;
+  text-align: center;
+}
+.hexin:focus { outline: none; border-color: #007aff; background: #fff; }
+
+/* number inputs */
+.numin {
+  width: 80px;
+  padding: 5px 8px;
+  border: 1px solid #d1d1d6;
+  border-radius: 8px;
+  font-size: 16px;
+  color: #1c1c1e;
+  background: #fafafa;
+  text-align: right;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.numin:focus { outline: none; border-color: #007aff; background: #fff; }
+
+.unit {
+  font-size: 14px;
+  color: #8e8e93;
+  flex-shrink: 0;
+}
+
+/* language selector */
+.lang-group {
+  display: flex;
+  border: 1px solid #d1d1d6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.lang-btn {
+  padding: 6px 16px;
+  border: none;
+  background: #fafafa;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3a3a3c;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.lang-btn + .lang-btn {
+  border-left: 1px solid #d1d1d6;
+}
+.lang-btn.active {
+  background: #007aff;
+  color: #fff;
+}
+
+/* iOS-style toggle */
+.toggle {
+  position: relative;
+  width: 51px;
+  height: 31px;
+  border-radius: 16px;
+  border: none;
+  cursor: pointer;
+  background: #e5e5ea;
+  transition: background 0.2s;
+  flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+  transition: transform 0.2s;
+}
+.toggle.on { background: #34c759; }
+.toggle.on::after { transform: translateX(20px); }
+
+/* buttons */
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.btn-main {
+  width: 100%;
+  height: 52px;
+  border-radius: 14px;
+  border: none;
+  font-size: 17px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: #007aff;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.btn-main:active { opacity: 0.82; }
+.btn-main.orange { background: #ff9500; }
+.btn-main.green  { background: #34c759; }
+
+.btn-reset {
+  width: 100%;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid #d1d1d6;
+  font-size: 17px;
+  font-weight: 500;
+  color: #3a3a3c;
+  background: #fff;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+.btn-reset:active { opacity: 0.7; }
+
+#status {
+  text-align: center;
+  font-size: 13px;
+  color: #8e8e93;
+  margin-top: 8px;
+  min-height: 18px;
+}
+</style>
+</head>
+<body>
+
+<button id="gear-btn" aria-label="Open settings">&#9881;</button>
+<div id="timer" aria-live="polite"></div>
+<div id="done-mark" aria-hidden="true">&#10003;</div>
+<div id="prog-bar"><div id="prog-fill"></div></div>
+
+<div id="panel" role="dialog" aria-label="Settings">
+  <div class="inner">
+    <div class="handle"></div>
+    <div class="app-title" id="app-title">Color Change</div>
+    <div id="grad-preview"></div>
+
+    <div class="card">
+      <div class="crow">
+        <span class="clabel" id="lbl-sc">Start Color</span>
+        <div class="cval">
+          <div class="color-wrap">
+            <div class="swatch" id="sc-swatch"></div>
+            <input type="color" class="cnative" id="sc-native" value="#ff0000">
+          </div>
+          <input type="text" class="hexin" id="sc-hex" value="#ff0000" maxlength="7" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <div class="crow">
+        <span class="clabel" id="lbl-ec">End Color</span>
+        <div class="cval">
+          <div class="color-wrap">
+            <div class="swatch" id="ec-swatch"></div>
+            <input type="color" class="cnative" id="ec-native" value="#0000ff">
+          </div>
+          <input type="text" class="hexin" id="ec-hex" value="#0000ff" maxlength="7" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="crow">
+        <span class="clabel" id="lbl-dur">Duration</span>
+        <div class="cval">
+          <input type="number" class="numin" id="dur-in" value="60" min="1" max="86400" inputmode="numeric">
+          <span class="unit" id="unit-dur">sec</span>
+        </div>
+      </div>
+      <div class="crow">
+        <span class="clabel" id="lbl-thresh">Alert at</span>
+        <div class="cval">
+          <input type="number" class="numin" id="thresh-in" value="10" min="1" max="50" inputmode="numeric">
+          <span class="unit" id="unit-thresh">% left</span>
+        </div>
+      </div>
+      <div class="crow">
+        <span class="clabel" id="lbl-grad">Gradual change</span>
+        <div class="cval">
+          <button class="toggle on" id="grad-btn" aria-label="Gradual change" aria-pressed="true"></button>
+        </div>
+      </div>
+      <div class="crow">
+        <span class="clabel" id="lbl-snd">Sound alert</span>
+        <div class="cval">
+          <button class="toggle on" id="snd-btn" aria-label="Sound" aria-pressed="true"></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="crow">
+        <span class="clabel" id="lbl-lang">Language</span>
+        <div class="cval">
+          <div class="lang-group">
+            <button class="lang-btn active" id="lang-en">EN</button>
+            <button class="lang-btn" id="lang-es">ES</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-main" id="main-btn">Start</button>
+      <button class="btn-reset" id="reset-btn">Reset</button>
+    </div>
+    <div id="status"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var IDLE = 'idle', RUN = 'run', PAUSE = 'pause', DONE = 'done';
+  var state = IDLE;
+  var animId = null;
+  var runStart = 0;
+  var elapsedSaved = 0;
+  var wakeupFired = false;
+
+  var cSrc, cDst, cDur, cThresh, cGradual;
+
+  var audioCtx = null;
+  var silentNode = null;
+  var wakeLock = null;
+  var soundOn = true;
+  var gradualOn = true;
+  var lang = 'en';
+
+  var STRINGS = {
+    en: {
+      appTitle: 'Color Change', startColor: 'Start Color', endColor: 'End Color',
+      duration: 'Duration', durUnit: 'sec', alertAt: 'Alert at', alertUnit: '% left',
+      gradual: 'Gradual change', sound: 'Sound alert', language: 'Language',
+      btnStart: 'Start', btnResume: 'Resume', btnStartAgain: 'Start Again', btnReset: 'Reset',
+      paused: 'Paused', done: 'Done! Ready to go again.',
+      notifTitle: 'Almost done!', notifBody: 'Color transition ending soon'
+    },
+    es: {
+      appTitle: 'Cambio de Color', startColor: 'Color inicial', endColor: 'Color final',
+      duration: 'Duración', durUnit: 'seg', alertAt: 'Alerta al', alertUnit: '% restante',
+      gradual: 'Cambio gradual', sound: 'Alerta sonora', language: 'Idioma',
+      btnStart: 'Comenzar', btnResume: 'Continuar', btnStartAgain: 'Comenzar de nuevo', btnReset: 'Reiniciar',
+      paused: 'Pausado', done: '¡Listo! Listo para volver a empezar.',
+      notifTitle: '¡Casi listo!', notifBody: 'La transición de color termina pronto'
+    }
+  };
+
+  function t(k) { return (STRINGS[lang] || STRINGS.en)[k]; }
+
+  // DOM
+  var body = document.body;
+  var gearBtn = document.getElementById('gear-btn');
+  var timerEl = document.getElementById('timer');
+  var doneMark = document.getElementById('done-mark');
+  var progBar = document.getElementById('prog-bar');
+  var progFill = document.getElementById('prog-fill');
+  var panel = document.getElementById('panel');
+  var gradPreview = document.getElementById('grad-preview');
+  var scSwatch = document.getElementById('sc-swatch');
+  var scNative = document.getElementById('sc-native');
+  var scHex = document.getElementById('sc-hex');
+  var ecSwatch = document.getElementById('ec-swatch');
+  var ecNative = document.getElementById('ec-native');
+  var ecHex = document.getElementById('ec-hex');
+  var durIn = document.getElementById('dur-in');
+  var threshIn = document.getElementById('thresh-in');
+  var gradBtn = document.getElementById('grad-btn');
+  var sndBtn = document.getElementById('snd-btn');
+  var langEnBtn = document.getElementById('lang-en');
+  var langEsBtn = document.getElementById('lang-es');
+  var mainBtn = document.getElementById('main-btn');
+  var resetBtn = document.getElementById('reset-btn');
+  var statusEl = document.getElementById('status');
+
+  // ── utils ──────────────────────────────────────────────
+
+  function hexToRgb(h) {
+    var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);
+    return m ? [parseInt(m[1],16), parseInt(m[2],16), parseInt(m[3],16)] : [0,0,0];
+  }
+  function lerp(a, b, t) { return a + (b-a)*t; }
+  function clamp(v,lo,hi) { return v<lo?lo:v>hi?hi:v; }
+  function isHex(v) { return /^#[0-9a-f]{6}$/i.test(v); }
+  function expandHex(v) {
+    if (/^#[0-9a-f]{3}$/i.test(v)) return '#'+v[1]+v[1]+v[2]+v[2]+v[3]+v[3];
+    return v;
+  }
+  function fmtMs(ms) {
+    var s = Math.ceil(ms/1000);
+    var m = Math.floor(s/60); s %= 60;
+    return (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+  }
+
+  // ── persist ────────────────────────────────────────────
+
+  function save() {
+    try {
+      localStorage.setItem('cc_sc', scNative.value);
+      localStorage.setItem('cc_ec', ecNative.value);
+      localStorage.setItem('cc_dur', durIn.value);
+      localStorage.setItem('cc_th', threshIn.value);
+      localStorage.setItem('cc_snd', soundOn?'1':'0');
+      localStorage.setItem('cc_grad', gradualOn?'1':'0');
+      localStorage.setItem('cc_lang', lang);
+    } catch(e) {}
+  }
+
+  function load() {
+    try {
+      applyColor('s', localStorage.getItem('cc_sc') || '#ff0000');
+      applyColor('e', localStorage.getItem('cc_ec') || '#0000ff');
+      durIn.value   = localStorage.getItem('cc_dur') || '60';
+      threshIn.value = localStorage.getItem('cc_th') || '10';
+      var snd = localStorage.getItem('cc_snd');
+      soundOn = snd === null || snd === '1';
+      var grad = localStorage.getItem('cc_grad');
+      gradualOn = grad === null || grad === '1';
+      lang = localStorage.getItem('cc_lang') || 'en';
+      refreshSndBtn();
+      refreshGradBtn();
+      applyLang();
+    } catch(e) {}
+  }
+
+  function applyLang() {
+    document.getElementById('app-title').textContent   = t('appTitle');
+    document.getElementById('lbl-sc').textContent      = t('startColor');
+    document.getElementById('lbl-ec').textContent      = t('endColor');
+    document.getElementById('lbl-dur').textContent     = t('duration');
+    document.getElementById('unit-dur').textContent    = t('durUnit');
+    document.getElementById('lbl-thresh').textContent  = t('alertAt');
+    document.getElementById('unit-thresh').textContent = t('alertUnit');
+    document.getElementById('lbl-grad').textContent    = t('gradual');
+    document.getElementById('lbl-snd').textContent     = t('sound');
+    document.getElementById('lbl-lang').textContent    = t('language');
+    resetBtn.textContent = t('btnReset');
+    if (state === IDLE)  mainBtn.textContent = t('btnStart');
+    if (state === PAUSE) mainBtn.textContent = t('btnResume');
+    if (state === DONE)  mainBtn.textContent = t('btnStartAgain');
+    langEnBtn.className = 'lang-btn' + (lang === 'en' ? ' active' : '');
+    langEsBtn.className = 'lang-btn' + (lang === 'es' ? ' active' : '');
+    if (state === PAUSE) statusEl.textContent = t('paused');
+    if (state === DONE)  statusEl.textContent = t('done');
+  }
+
+  function setLang(l) {
+    lang = l;
+    applyLang();
+    save();
+  }
+
+  langEnBtn.addEventListener('click', function() { setLang('en'); });
+  langEsBtn.addEventListener('click', function() { setLang('es'); });
+
+  // ── color ──────────────────────────────────────────────
+
+  function applyColor(which, hex) {
+    if (!isHex(hex)) return;
+    if (which === 's') {
+      scNative.value = hex;
+      scHex.value = hex;
+      scSwatch.style.backgroundColor = hex;
+      if (state === IDLE) body.style.backgroundColor = hex;
+    } else {
+      ecNative.value = hex;
+      ecHex.value = hex;
+      ecSwatch.style.backgroundColor = hex;
+    }
+    refreshGrad();
+    save();
+  }
+
+  function refreshGradBtn() {
+    gradBtn.className = 'toggle' + (gradualOn ? ' on' : '');
+    gradBtn.setAttribute('aria-pressed', gradualOn ? 'true' : 'false');
+  }
+
+  gradBtn.addEventListener('click', function() {
+    gradualOn = !gradualOn;
+    refreshGradBtn();
+    refreshGrad();
+    save();
+  });
+
+  function refreshGrad() {
+    var sc = scNative.value, ec = ecNative.value;
+    gradPreview.style.background = gradualOn
+      ? 'linear-gradient(to right,'+sc+','+ec+')'
+      : 'linear-gradient(to right,'+sc+' 50%,'+ec+' 50%)';
+  }
+
+  function wireColor(which, native, hexIn, swatch) {
+    swatch.addEventListener('click', function() { native.click(); });
+    native.addEventListener('input', function() { applyColor(which, native.value); });
+    hexIn.addEventListener('input', function() {
+      var v = hexIn.value;
+      if (v.charAt(0) !== '#') { hexIn.value = '#'+v; v = hexIn.value; }
+      v = expandHex(v);
+      if (isHex(v)) applyColor(which, v);
+    });
+    hexIn.addEventListener('blur', function() {
+      if (!isHex(hexIn.value)) hexIn.value = native.value;
+    });
+  }
+
+  // ── sound ──────────────────────────────────────────────
+
+  function refreshSndBtn() {
+    sndBtn.className = 'toggle' + (soundOn ? ' on' : '');
+    sndBtn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+  }
+
+  sndBtn.addEventListener('click', function() {
+    soundOn = !soundOn;
+    refreshSndBtn();
+    save();
+  });
+
+  // ── audio ──────────────────────────────────────────────
+
+  function getACtx() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    return audioCtx;
+  }
+
+  function startSilent() {
+    var ctx = getACtx();
+    if (!ctx || silentNode) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    var buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    silentNode = ctx.createBufferSource();
+    silentNode.buffer = buf;
+    silentNode.loop = true;
+    silentNode.connect(ctx.destination);
+    silentNode.start(0);
+  }
+
+  function stopSilent() {
+    if (silentNode) {
+      try { silentNode.stop(); } catch(e) {}
+      silentNode = null;
+    }
+  }
+
+  function playChime(freqs, vol) {
+    if (!soundOn) return;
+    var ctx = getACtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    freqs.forEach(function(f, i) {
+      var osc = ctx.createOscillator();
+      var g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.frequency.value = f;
+      osc.type = 'sine';
+      var t = ctx.currentTime + i*0.18;
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t+0.5);
+      osc.start(t);
+      osc.stop(t+0.6);
+    });
+  }
+
+  // ── wake lock ──────────────────────────────────────────
+
+  function reqWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen').then(function(wl) {
+      wakeLock = wl;
+      wl.addEventListener('release', function() { wakeLock = null; });
+    }).catch(function() {});
+  }
+
+  function relWakeLock() {
+    if (wakeLock) { try { wakeLock.release(); } catch(e) {} wakeLock = null; }
+  }
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible' && state === RUN && !wakeLock) reqWakeLock();
+  });
+
+  // ── notifications ──────────────────────────────────────
+
+  function reqNotifPerm() {
+    if (!('Notification' in window) || Notification.permission !== 'default') return;
+    try {
+      var r = Notification.requestPermission(function() {});
+      if (r && r.then) r.then(function() {});
+    } catch(e) {}
+  }
+
+  function makeIcon(hex) {
+    var c = document.createElement('canvas');
+    c.width = c.height = 96;
+    var ctx = c.getContext('2d');
+    ctx.fillStyle = hex;
+    ctx.fillRect(0,0,96,96);
+    return c.toDataURL();
+  }
+
+  function fireNotif() {
+    var icon = makeIcon(ecNative.value);
+    var opts = { type:'NOTIFY', opts:{ title:t('notifTitle'), body:t('notifBody'), icon:icon } };
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage(opts);
+    } else if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(opts.opts.title, { body:opts.opts.body, icon:opts.opts.icon });
+    }
+  }
+
+  // ── animation ──────────────────────────────────────────
+
+  function animate(ts) {
+    var elapsed = elapsedSaved + (ts - runStart);
+    var t = Math.min(elapsed/cDur, 1);
+    var rem = Math.max(0, cDur - elapsed);
+
+    if (cGradual) {
+      var r = lerp(cSrc[0], cDst[0], t);
+      var g = lerp(cSrc[1], cDst[1], t);
+      var b = lerp(cSrc[2], cDst[2], t);
+      body.style.backgroundColor = 'rgb('+(r|0)+','+(g|0)+','+(b|0)+')';
+    }
+
+    progFill.style.width = (t*100)+'%';
+    timerEl.textContent = fmtMs(rem);
+
+    if (!wakeupFired && (1-t)*100 <= cThresh) {
+      wakeupFired = true;
+      if (!cGradual) body.style.backgroundColor = ecNative.value;
+      playChime([523,659,784,880], 0.35);
+      fireNotif();
+    }
+
+    if (t < 1) {
+      animId = requestAnimationFrame(animate);
+    } else {
+      onDone();
+    }
+  }
+
+  function onDone() {
+    state = DONE;
+    stopSilent();
+    relWakeLock();
+    playChime([784,880,1047], 0.3);
+    doneMark.className = 'on';
+    setTimeout(function() { doneMark.className = ''; }, 1200);
+    setRunUI(false);
+    setPanel(true);
+    mainBtn.textContent = t('btnStartAgain');
+    mainBtn.className = 'btn-main green';
+    resetBtn.style.display = 'block';
+    statusEl.textContent = t('done');
+  }
+
+  // ── ui helpers ─────────────────────────────────────────
+
+  function setPanel(show) { panel.classList.toggle('hidden', !show); }
+  function setRunUI(show) {
+    gearBtn.classList.toggle('on', show);
+    timerEl.classList.toggle('on', show);
+    progBar.classList.toggle('on', show);
+  }
+
+  // ── controls ───────────────────────────────────────────
+
+  function doStart() {
+    state = RUN;
+    wakeupFired = false;
+    elapsedSaved = 0;
+
+    cSrc = hexToRgb(scNative.value);
+    cDst = hexToRgb(ecNative.value);
+    cDur = clamp(parseInt(durIn.value)||60, 1, 86400) * 1000;
+    cThresh = clamp(parseInt(threshIn.value)||10, 1, 50);
+    cGradual = gradualOn;
+
+    body.style.backgroundColor = scNative.value;
+    progFill.style.width = '0%';
+
+    startSilent();
+    reqWakeLock();
+    reqNotifPerm();
+
+    setPanel(false);
+    setRunUI(true);
+    mainBtn.textContent = t('btnResume');
+    mainBtn.className = 'btn-main orange';
+    resetBtn.style.display = 'block';
+    statusEl.textContent = '';
+
+    runStart = performance.now();
+    animId = requestAnimationFrame(animate);
+  }
+
+  function doResume() {
+    state = RUN;
+    startSilent();
+    reqWakeLock();
+    setPanel(false);
+    setRunUI(true);
+    statusEl.textContent = '';
+    runStart = performance.now();
+    animId = requestAnimationFrame(animate);
+  }
+
+  function doPause() {
+    if (state !== RUN) return;
+    state = PAUSE;
+    elapsedSaved += performance.now() - runStart;
+    cancelAnimationFrame(animId);
+    stopSilent();
+    relWakeLock();
+    setRunUI(false);
+    setPanel(true);
+    mainBtn.textContent = t('btnResume');
+    mainBtn.className = 'btn-main orange';
+    resetBtn.style.display = 'block';
+    statusEl.textContent = t('paused');
+  }
+
+  function doReset() {
+    if (animId) cancelAnimationFrame(animId);
+    stopSilent();
+    relWakeLock();
+    state = IDLE;
+    elapsedSaved = 0;
+    wakeupFired = false;
+    doneMark.className = '';
+    progFill.style.width = '0%';
+    body.style.backgroundColor = scNative.value;
+    setRunUI(false);
+    setPanel(true);
+    mainBtn.textContent = t('btnStart');
+    mainBtn.className = 'btn-main';
+    resetBtn.style.display = 'none';
+    statusEl.textContent = '';
+  }
+
+  // ── events ─────────────────────────────────────────────
+
+  gearBtn.addEventListener('click', doPause);
+
+  mainBtn.addEventListener('click', function() {
+    if (state === IDLE || state === DONE) doStart();
+    else if (state === PAUSE) doResume();
+  });
+
+  resetBtn.addEventListener('click', doReset);
+
+  durIn.addEventListener('change', function() {
+    var v = parseInt(durIn.value);
+    durIn.value = isNaN(v) ? 60 : clamp(v, 1, 86400);
+    save();
+  });
+
+  threshIn.addEventListener('change', function() {
+    var v = parseInt(threshIn.value);
+    threshIn.value = isNaN(v) ? 10 : clamp(v, 1, 50);
+    save();
+  });
+
+  // ── service worker ─────────────────────────────────────
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('./sw.js').catch(function() {});
+    });
+  }
+
+  // ── init ───────────────────────────────────────────────
+
+  wireColor('s', scNative, scHex, scSwatch);
+  wireColor('e', ecNative, ecHex, ecSwatch);
+  load();
+  applyLang();
+  body.style.backgroundColor = scNative.value;
+
+})();
+</script>
+</body>
+</html>
